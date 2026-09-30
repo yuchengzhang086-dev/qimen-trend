@@ -2,7 +2,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
 import re
-from kinqimen import kinqimen
+from datetime import datetime
 
 st.set_page_config(page_title="时空能量分析", layout="wide")
 
@@ -29,14 +29,11 @@ st.markdown("""
     font-weight: bold;
     margin-bottom: 4px;
 }
-.qimen-cell .door { color: #4caf50; }
-.qimen-cell .star { color: #ff5252; }
-.qimen-cell .god { color: #42a5f5; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🔮 时空能量分析")
-st.caption("奇门定方位，八字定时间，两者通过五行联动")
+st.caption("输入出生时间，查看方位能量与八字流年趋势")
 
 with st.sidebar:
     st.header("📅 出生信息")
@@ -46,15 +43,10 @@ with st.sidebar:
     hour = st.number_input("出生小时（0-23）", min_value=0, max_value=23, value=0, step=1)
 
 
-def get_qimen_pan(year, month, day, hour):
-    try:
-        qimen = kinqimen.Qimen(year, month, day, hour)
-        return qimen.pan()
-    except Exception as e:
-        return {"error": str(e)}
+# ===== 干支计算（不依赖 kinqimen）=====
+TIANGAN = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+DIZHI = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
 
-
-# ===== 基础对照 =====
 TIANGAN_WUXING = {"甲": "木", "乙": "木", "丙": "火", "丁": "火",
                   "戊": "土", "己": "土", "庚": "金", "辛": "金",
                   "壬": "水", "癸": "水"}
@@ -75,261 +67,192 @@ DIZHI_CANGGAN = {
 WUXING_SHENG = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
 WUXING_KE = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
 
-MONTH_STRENGTH = {
-    "寅": {"火": 0.75, "木": 1.0, "土": 0.2, "金": 0.35, "水": 0.5},
-    "卯": {"火": 0.75, "木": 1.0, "土": 0.2, "金": 0.35, "水": 0.5},
-    "辰": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "巳": {"火": 1.0, "木": 0.5, "土": 0.75, "金": 0.2, "水": 0.35},
-    "午": {"火": 1.0, "木": 0.5, "土": 0.75, "金": 0.2, "水": 0.35},
-    "未": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "申": {"火": 0.35, "木": 0.2, "土": 0.5, "金": 1.0, "水": 0.75},
-    "酉": {"火": 0.35, "木": 0.2, "土": 0.5, "金": 1.0, "水": 0.75},
-    "戌": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "亥": {"火": 0.2, "木": 0.75, "土": 0.35, "金": 0.5, "水": 1.0},
-    "子": {"火": 0.2, "木": 0.75, "土": 0.35, "金": 0.5, "水": 1.0},
-    "丑": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-}
-
-ZHI_SEQ = ["亥", "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌"]
-GAN_SEQ = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
-
 WUXING_COEF = {"火": 1.0, "木": 0.8, "土": -0.6, "金": -0.4, "水": -1.0}
 
 PALACE_BENQI = {"巽": "木", "离": "火", "坤": "土", "震": "木", "中": "土",
                 "兑": "金", "艮": "土", "坎": "水", "乾": "金"}
 
 
-def extract_sizhu(ganzhi_str):
-    ganzhi_str = ganzhi_str.replace(" ", "").replace("\u3000", "")
-    GAN = "甲乙丙丁戊己庚辛壬癸"
-    ZHI = "子丑寅卯辰巳午未申酉戌亥"
-    pattern = f'([{GAN}])([{ZHI}])'
-    matches = re.findall(pattern, ganzhi_str)
-    if len(matches) >= 4:
-        return {"年": matches[0], "月": matches[1], "日": matches[2], "时": matches[3]}
-    return None
-
-
 def get_year_ganzhi(year):
-    gan = GAN_SEQ[(year - 1984) % 10]
-    zhi_list = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
-    zhi = zhi_list[(year - 1984) % 12]
+    """年柱干支（以立春为界，此处简化）"""
+    gan = TIANGAN[(year - 1984) % 10]
+    zhi = DIZHI[(year - 1984) % 12]
     return gan, zhi
 
 
-def compute_palace_fixed_score(pan, palace):
-    tian_gan = pan.get("天盤", {}).get(palace, "")
-    di_gan = pan.get("地盤", {}).get(palace, "")
-    bq_wx = PALACE_BENQI.get(palace, "")
+def get_day_ganzhi(year, month, day):
+    """日柱干支（简化公式，仅供参考）"""
+    dt = datetime(year, month, day)
+    base = datetime(1900, 1, 1)
+    delta = (dt - base).days
+    gan = TIANGAN[(delta + 10) % 10]
+    zhi = DIZHI[(delta + 10) % 12]
+    return gan, zhi
 
-    tian_wx = TIANGAN_WUXING.get(tian_gan, "")
-    di_wx = TIANGAN_WUXING.get(di_gan, "")
 
-    score = 0.0
-    if tian_wx:
-        score += WUXING_COEF.get(tian_wx, 0) * 1.0
-    if di_wx:
-        score += WUXING_COEF.get(di_wx, 0) * 1.0
-    if bq_wx:
-        score += WUXING_COEF.get(bq_wx, 0) * 1.5
+def get_hour_ganzhi(day_gan, hour):
+    """时柱干支"""
+    day_gan_idx = TIANGAN.index(day_gan)
+    hour_zhi_idx = ((hour + 1) // 2) % 12
+    hour_gan_idx = (day_gan_idx * 2 + hour_zhi_idx) % 10
+    return TIANGAN[hour_gan_idx], DIZHI[hour_zhi_idx]
 
-    return score, tian_wx, di_wx, bq_wx
+
+def build_sizhu(year, month, day, hour):
+    """构造四柱"""
+    year_gan, year_zhi = get_year_ganzhi(year)
+    # 月柱简化：用节气近似，这里只做演示
+    month_zhi_idx = (month + 1) % 12
+    month_zhi = DIZHI[month_zhi_idx]
+    month_gan_idx = (TIANGAN.index(year_gan) * 2 + month_zhi_idx) % 10
+    month_gan = TIANGAN[month_gan_idx]
+
+    day_gan, day_zhi = get_day_ganzhi(year, month, day)
+    hour_gan, hour_zhi = get_hour_ganzhi(day_gan, hour)
+
+    return {
+        "年": (year_gan, year_zhi),
+        "月": (month_gan, month_zhi),
+        "日": (day_gan, day_zhi),
+        "时": (hour_gan, hour_zhi),
+    }
+
+
+def compute_daymaster_strength(sizhu):
+    """日主强弱"""
+    score = {"火": 0.0, "木": 0.0, "土": 0.0, "金": 0.0, "水": 0.0}
+    for zhu_name, (gan, zhi) in sizhu.items():
+        if gan in TIANGAN_WUXING:
+            if zhu_name != "日":
+                score[TIANGAN_WUXING[gan]] += 1.0
+        if zhi in DIZHI_CANGGAN:
+            for cg, w in DIZHI_CANGGAN[zhi].items():
+                score[TIANGAN_WUXING[cg]] += w
+    return score
+
+
+def compute_palace_score(palace):
+    """方位分（仅用本气）"""
+    bq = PALACE_BENQI.get(palace, "")
+    return WUXING_COEF.get(bq, 0)
+
+
+def get_dayun_list(sizhu):
+    """大运（逆排）"""
+    month_gan, month_zhi = sizhu["月"]
+    mg_idx = TIANGAN.index(month_gan)
+    mz_idx = DIZHI.index(month_zhi)
+    dayun = []
+    for i in range(8):
+        g = TIANGAN[(mg_idx - 1 - i) % 10]
+        z = DIZHI[(mz_idx - 1 - i) % 12]
+        dayun.append((g, z))
+    return dayun
 
 
 def get_dayun(age, sizhu):
-    month_gan, month_zhi = sizhu["月"]
-    month_gan_idx = GAN_SEQ.index(month_gan) if month_gan in GAN_SEQ else 0
-    month_zhi_idx = ZHI_SEQ.index(month_zhi) if month_zhi in ZHI_SEQ else 0
-
-    dayun_list = []
-    for i in range(8):
-        g = GAN_SEQ[(month_gan_idx - 1 - i) % 10]
-        z = ZHI_SEQ[(month_zhi_idx - 1 - i) % 12]
-        dayun_list.append((g, z))
-
-    idx = min((age - 1) // 10, len(dayun_list) - 1)
-    return dayun_list[idx]
-
-
-def compute_palace_60year(palace, pan, daymaster_gan, sizhu, start_year):
-    years = list(range(start_year, start_year + 60))
-    palace_score, _, _, _ = compute_palace_fixed_score(pan, palace)
-
-    flow_scores = []
-    dayun_scores = []
-    for y in years:
-        year_gan, year_zhi = get_year_ganzhi(y)
-        age = y - start_year + 1
-
-        dayun_gan, dayun_zhi = get_dayun(age, sizhu)
-        dayun_wx_gan = TIANGAN_WUXING.get(dayun_gan, "")
-        dayun_wx_zhi = DIZHI_WUXING.get(dayun_zhi, "")
-        dayun_score = 0.0
-        if dayun_wx_gan:
-            dayun_score += WUXING_COEF[dayun_wx_gan] * 1.0
-        if dayun_wx_zhi:
-            dayun_score += WUXING_COEF[dayun_wx_zhi] * 0.8
-        dayun_scores.append(dayun_score)
-
-        year_wx = TIANGAN_WUXING.get(year_gan, "")
-        year_score = WUXING_COEF.get(year_wx, 0) * 0.5
-
-        total = palace_score + dayun_score + year_score
-        flow_scores.append(total)
-
-    return years, flow_scores, palace_score, dayun_scores
+    dayun = get_dayun_list(sizhu)
+    idx = min((age - 1) // 10, len(dayun) - 1)
+    return dayun[idx]
 
 
 # ===== 主界面 =====
-pan = get_qimen_pan(year, month, day, hour)
-
-if "error" in pan:
-    st.error(f"排盘失败：{pan['error']}")
-    st.stop()
-
-ganzhi_str = pan.get("干支", "")
-sizhu = extract_sizhu(ganzhi_str)
-
-if not sizhu:
-    st.error(f"无法提取四柱八字。原始干支：`{ganzhi_str}`")
-    st.stop()
-
+sizhu = build_sizhu(year, month, day, hour)
 daymaster_gan = sizhu["日"][0]
 
-st.caption(f"当前输入：{year}年{month}月{day}日{hour}时　｜　四柱：{ganzhi_str}　｜　日主：{daymaster_gan}")
+st.caption(f"出生：{year}年{month}月{day}日{hour}时　｜　"
+           f"四柱：{sizhu['年'][0]}{sizhu['年'][1]} "
+           f"{sizhu['月'][0]}{sizhu['月'][1]} "
+           f"{sizhu['日'][0]}{sizhu['日'][1]} "
+           f"{sizhu['时'][0]}{sizhu['时'][1]}　｜　日主：{daymaster_gan}")
 
 col1, col2 = st.columns([3, 4])
 
 with col1:
-    st.subheader("🧭 空间维度 · 奇门九宫")
+    st.subheader("🧭 空间维度 · 方位能量")
 
-    st.markdown(f"**节气**：{pan.get('節氣', '—')}")
-    st.markdown(f"**格局**：{pan.get('排局', '—')}")
-
-    st.markdown("---")
-    st.markdown("**九宫格**")
+    st.markdown("**九宫格（仅显示方位本气）**")
 
     palace_layout = [
-        ("巽", "东南", "#4caf50"), ("離", "正南", "#ff5252"), ("坤", "西南", "#ffc107"),
-        ("震", "正东", "#26a69a"), ("中", "中央", "#8d6e63"), ("兌", "正西", "#e8e8e8"),
+        ("巽", "东南", "#4caf50"), ("离", "正南", "#ff5252"), ("坤", "西南", "#ffc107"),
+        ("震", "正东", "#26a69a"), ("中", "中央", "#8d6e63"), ("兑", "正西", "#e8e8e8"),
         ("艮", "东北", "#9e9e9e"), ("坎", "正北", "#2196f3"), ("乾", "西北", "#ffd54f"),
     ]
 
     html = '<div class="qimen-grid">'
     for name, direction, color in palace_layout:
-        door = pan.get("門", {}).get(name, "—")
-        star = pan.get("星", {}).get(name, "—")
-        god = pan.get("神", {}).get(name, "—")
-        tianpan_val = pan.get("天盤", {}).get(name, "—")
-        dipan_val = pan.get("地盤", {}).get(name, "—")
-        score, twx, dwx, bw = compute_palace_fixed_score(pan, name)
+        bq = PALACE_BENQI[name]
+        score = compute_palace_score(name)
         html += (
             f'<div class="qimen-cell" style="border-color: {color};">'
-            f'<div class="palace-name" style="color: {color};">{name}宫'
-            f'<br><span style="font-size:10px;color:#888">{direction}</span></div>'
-            f'<div class="god">能量：{god}</div>'
-            f'<div class="star">星象：{star}</div>'
-            f'<div class="door">出口：{door}</div>'
-            f'<div style="font-size:12px;color:#aaa;margin-top:4px;">'
-            f'天{twx or "—"} 地{dwx or "—"} 本{bw}</div>'
-            f'<div style="font-size:12px;color:#ffb74d;margin-top:2px;">'
-            f'方位分：{score:+.2f}</div>'
+            f'<div class="palace-name" style="color: {color};">{name}宫</div>'
+            f'<div style="font-size:11px;color:#888;">{direction}</div>'
+            f'<div style="font-size:12px;color:#ddd;">本气：{bq}</div>'
+            f'<div style="font-size:12px;color:#ffb74d;">分数：{score:+.2f}</div>'
             f'</div>'
         )
     html += '</div>'
     st.html(html)
 
-    st.markdown("---")
-    st.markdown("### 🧭 方位能量排序")
-
-    palace_energy = []
-    for name in ["巽", "離", "坤", "震", "中", "兌", "艮", "坎", "乾"]:
-        score, twx, dwx, bw = compute_palace_fixed_score(pan, name)
-        palace_energy.append({
-            "name": name,
-            "direction": {"巽": "东南", "離": "正南", "坤": "西南", "震": "正东",
-                          "中": "中央", "兌": "正西", "艮": "东北", "坎": "正北", "乾": "西北"}[name],
-            "wuxing": f"天{twx or '—'} 地{dwx or '—'} 本{bw}",
-            "score": score,
-        })
-
-    sorted_palaces = sorted(palace_energy, key=lambda x: x["score"], reverse=True)
-
-    cols_energy = st.columns(3)
-    for i, p in enumerate(sorted_palaces):
-        with cols_energy[i % 3]:
-            if p["score"] > 1.0:
-                tag, tag_color = "🟢 有利", "#66bb6a"
-            elif p["score"] > 0:
-                tag, tag_color = "🟡 偏有利", "#ffca28"
-            elif p["score"] > -1.0:
-                tag, tag_color = "🟠 偏不利", "#ff9800"
-            else:
-                tag, tag_color = "🔴 不利", "#ef5350"
-
-            st.markdown(
-                f"""<div style="border:1px solid #555; border-radius:6px;
-                padding:10px; margin:4px 0; background:#1a1f2e;">
-                <div style="font-size:15px;font-weight:bold;color:#ddd;">
-                {p['direction']}（{p['name']}宫）</div>
-                <div style="color:#aaa;font-size:12px;">{p['wuxing']}</div>
-                <div style="color:#ffb74d;font-size:12px;">分数：{p['score']:+.2f}</div>
-                <div style="color:{tag_color};font-size:13px;margin-top:4px;">{tag}</div>
-                </div>""",
-                unsafe_allow_html=True,
-            )
+    st.caption("注：方位分基于宫位本气五行，仅作参考。")
 
 with col2:
-    st.subheader("📈 宫位趋势 · 时空联动")
-    st.caption("每个宫位的 60 年趋势 = 方位分（固定）+ 大运分（10年一变）+ 流年分（每年变）")
+    st.subheader("📈 宫位 60 年趋势")
 
     palace_options = ["巽宫（东南·木）", "离宫（正南·火）", "坤宫（西南·土）",
                       "震宫（正东·木）", "中宫（中央·土）", "兑宫（正西·金）",
                       "艮宫（东北·土）", "坎宫（正北·水）", "乾宫（西北·金）"]
     selected = st.selectbox("选择宫位", palace_options)
-    palace_names = ["巽", "離", "坤", "震", "中", "兌", "艮", "坎", "乾"]
-    palace_index = palace_options.index(selected)
-    selected_palace = palace_names[palace_index]
+    palace_names = ["巽", "离", "坤", "震", "中", "兑", "艮", "坎", "乾"]
+    selected_palace = palace_names[palace_options.index(selected)]
 
-    years_list, flow_scores, palace_score, dayun_scores = compute_palace_60year(
-        selected_palace, pan, daymaster_gan, sizhu, year
-    )
+    palace_score = compute_palace_score(selected_palace)
 
-    st.markdown(f"**该宫方位分（固定）**：{palace_score:+.2f}")
+    years = list(range(year, year + 60))
+    flow_scores = []
+    dayun_scores = []
 
-    fig_flow = go.Figure()
-    fig_flow.add_trace(go.Scatter(
-        x=years_list, y=flow_scores,
+    for yi, y in enumerate(years):
+        y_gan, y_zhi = get_year_ganzhi(y)
+        age = y - year + 1
+
+        dy_gan, dy_zhi = get_dayun(age, sizhu)
+        dy_score = 0.0
+        if TIANGAN_WUXING.get(dy_gan):
+            dy_score += WUXING_COEF[TIANGAN_WUXING[dy_gan]] * 1.0
+        if DIZHI_WUXING.get(dy_zhi):
+            dy_score += WUXING_COEF[DIZHI_WUXING[dy_zhi]] * 0.8
+        dayun_scores.append(dy_score)
+
+        y_wx = TIANGAN_WUXING.get(y_gan, "")
+        y_score = WUXING_COEF.get(y_wx, 0) * 0.5
+
+        flow_scores.append(palace_score + dy_score + y_score)
+
+    st.markdown(f"**该宫方位分**：{palace_score:+.2f}")
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=years, y=flow_scores,
         mode="lines", line=dict(color="#ffb74d", width=2.5),
         name="综合能量",
     ))
-    fig_flow.add_trace(go.Scatter(
-        x=years_list, y=[palace_score + d for d in dayun_scores],
+    fig.add_trace(go.Scatter(
+        x=years, y=[palace_score + d for d in dayun_scores],
         mode="lines", line=dict(color="#42a5f5", width=1.5, dash="dash"),
         name="方位+大运基线",
     ))
-    fig_flow.add_hline(y=palace_score, line_dash="dot", line_color="#888",
-                       annotation_text=f"方位分 {palace_score:+.2f}")
-    fig_flow.add_hline(y=0, line_dash="dot", line_color="#555")
-    fig_flow.update_layout(
+    fig.add_hline(y=palace_score, line_dash="dot", line_color="#888")
+    fig.add_hline(y=0, line_dash="dot", line_color="#555")
+    fig.update_layout(
         height=400, template="plotly_dark",
         margin=dict(l=60, r=20, t=30, b=40),
         xaxis_title="年份", yaxis_title="综合能量",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
     )
-    st.plotly_chart(fig_flow, use_container_width=True)
-
-    st.caption("橙线 = 综合能量（方位 + 大运 + 流年）｜ 蓝虚线 = 方位 + 大运基线 ｜ 灰点线 = 方位分")
+    st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 st.markdown("""
-**联动逻辑**：
-
-- **方位分（固定）**：从奇门盘算，天盘干×1 + 地盘干×1 + 本气×1.5
-- **大运分（10年一变）**：从八字大运算，大运天干×1 + 大运地支×0.8
-- **流年分（每年变）**：从八字流年算，流年天干×0.5
-
-**综合能量 = 方位分 + 大运分 + 流年分**
-
-同一个流年，落在不同宫位上，因为方位分不同，结果不同。
+**说明**：此版本不依赖 kinqimen，改用简化的干支计算。方位分基于宫位本气，
+时间趋势基于八字大运与流年天干。仅作能量起伏的演示，不构成预测。
 """)
