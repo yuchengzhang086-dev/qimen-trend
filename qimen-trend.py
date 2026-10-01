@@ -44,10 +44,7 @@ st.markdown("""
         flex: 1 1 100% !important;
         min-width: 100% !important;
     }
-    .qimen-cell {
-        padding: 4px;
-        font-size: 10px;
-    }
+    .qimen-cell { padding: 4px; font-size: 10px; }
     .qimen-cell .palace-name { font-size: 12px; }
     .qimen-cell .score { font-size: 16px; }
     .qimen-cell .level { font-size: 10px; }
@@ -59,14 +56,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🔮 时空能量分析")
-st.caption("固定命盘 + 变化时间：看每年哪个方位最有利")
-
-with st.sidebar:
-    st.header("📅 出生信息")
-    year = st.number_input("出生年份", min_value=1900, max_value=2100, value=1990, step=1)
-    month = st.number_input("出生月份", min_value=1, max_value=12, value=1, step=1)
-    day = st.number_input("出生日期", min_value=1, max_value=31, value=1, step=1)
-    hour = st.number_input("出生小时（0-23）", min_value=0, max_value=23, value=0, step=1)
+st.caption("输入出生时间，查看每年哪个方位最有利")
 
 
 # ===== 干支基础 =====
@@ -181,11 +171,6 @@ def get_dayun(age, sizhu):
 
 
 def compute_palace_energy(palace, target_year, birth_year, sizhu):
-    """
-    计算某宫在某年的综合能量
-    综合能量 = 方位分 × 流年因子 × 大运因子
-    """
-    # 方位分
     bq = PALACE_BENQI[palace]
     bq_score = WUXING_COEF.get(bq, 0)
     feixing = (target_year - 2026) % 9 + 1
@@ -193,7 +178,6 @@ def compute_palace_energy(palace, target_year, birth_year, sizhu):
     fs_score = WUXING_COEF.get(fs_wx, 0) * 0.3
     palace_score = bq_score + fs_score
 
-    # 大运因子
     age = target_year - birth_year + 1
     dy_gan, dy_zhi = get_dayun(age, sizhu)
     dy_score = 0.0
@@ -202,20 +186,16 @@ def compute_palace_energy(palace, target_year, birth_year, sizhu):
     if DIZHI_WUXING.get(dy_zhi):
         dy_score += WUXING_COEF[DIZHI_WUXING[dy_zhi]] * 0.8
 
-    # 流年因子
     y_gan, _ = get_year_ganzhi(target_year)
     y_wx = TIANGAN_WUXING.get(y_gan, "")
     y_score = WUXING_COEF.get(y_wx, 0) * 0.5
 
     y_factor = 1.0 + y_score * 0.8
     dy_factor = 1.0 + dy_score * 0.5
-    total = palace_score * y_factor * dy_factor
-
-    return total
+    return palace_score * y_factor * dy_factor
 
 
 def get_level(score):
-    """按分数给等级和颜色"""
     if score > 1.0:
         return "🟢 有利", "#66bb6a"
     elif score > 0.2:
@@ -227,9 +207,26 @@ def get_level(score):
 
 
 # ===== 主界面 =====
+st.markdown("### 📅 第一步：输入出生信息")
+
+col_y, col_m, col_d, col_h = st.columns(4)
+with col_y:
+    year = st.number_input("出生年份", min_value=1900, max_value=2100, value=1990, step=1)
+with col_m:
+    month = st.number_input("出生月份", min_value=1, max_value=12, value=1, step=1)
+with col_d:
+    day = st.number_input("出生日期", min_value=1, max_value=31, value=1, step=1)
+with col_h:
+    hour = st.number_input("出生小时（0-23）", min_value=0, max_value=23, value=0, step=1)
+
+st.caption("提示：出生时间用于计算四柱和日主，越准确结果越贴合。")
+
 sizhu = build_sizhu(year, month, day, hour)
 daymaster_gan = sizhu["日"][0]
 daymaster_wx = TIANGAN_WUXING[daymaster_gan]
+
+st.markdown("---")
+st.markdown("### 📊 第二步：查看结果")
 
 st.caption(f"出生：{year}年{month}月{day}日{hour}时　｜　"
            f"四柱：{sizhu['年'][0]}{sizhu['年'][1]} "
@@ -237,14 +234,14 @@ st.caption(f"出生：{year}年{month}月{day}日{hour}时　｜　"
            f"{sizhu['日'][0]}{sizhu['日'][1]} "
            f"{sizhu['时'][0]}{sizhu['时'][1]}　｜　日主：{daymaster_gan}（{daymaster_wx}）")
 
-# 年份选择
 current_year = datetime.now().year
 target_year = st.slider("查看年份", min_value=year, max_value=year + 60,
                         value=max(current_year, year), step=1)
 
+st.caption("💡 拖动上面的滑块，可以查看不同年份的九宫方位能量。")
+
 st.markdown(f"## 📅 {target_year} 年 · 九宫方位能量")
 
-# 计算当年每个宫的能量
 palace_layout = [
     ("巽", "东南", "#4caf50"), ("离", "正南", "#ff5252"), ("坤", "西南", "#ffc107"),
     ("震", "正东", "#26a69a"), ("中", "中央", "#8d6e63"), ("兑", "正西", "#e8e8e8"),
@@ -255,7 +252,6 @@ energies = {}
 for name, _, _ in palace_layout:
     energies[name] = compute_palace_energy(name, target_year, year, sizhu)
 
-# 九宫格
 html = '<div class="qimen-grid">'
 for name, direction, color in palace_layout:
     score = energies[name]
@@ -270,11 +266,9 @@ for name, direction, color in palace_layout:
 html += '</div>'
 st.html(html)
 
-# 排序总结
 sorted_palaces = sorted(energies.items(), key=lambda x: x[1], reverse=True)
 best_3 = sorted_palaces[:3]
 worst_3 = sorted_palaces[-3:]
-
 palace_dir = {name: direction for name, direction, _ in palace_layout}
 
 st.markdown("---")
@@ -294,11 +288,9 @@ with col_b:
 
 st.caption("仅作能量参考，不构成实际建议。")
 
-# ===== 时间趋势 =====
 st.divider()
 st.markdown("## 📈 方位能量随时间变化")
 
-# 选择要看趋势的方位
 watch_palace = st.selectbox("选择方位", [f"{d}（{n}宫）" for n, d, _ in palace_layout])
 watch_name = watch_palace.split("（")[1].replace("宫）", "")
 
@@ -320,23 +312,20 @@ fig.update_layout(
     height=400, template="plotly_dark",
     margin=dict(l=40, r=20, t=30, b=40),
     xaxis_title="年份", yaxis_title="综合能量",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
 )
 st.plotly_chart(fig, use_container_width=True, config={
     'scrollZoom': True,
     'displayModeBar': False,
 })
 
-st.caption(f"蓝虚线标出你当前查看的 {target_year} 年。")
-
 st.divider()
 st.markdown("""
 **怎么看这个页面**：
 
-1. **拖动上方的年份滑块**，看不同年份的九宫格变化
-2. **绿色/黄色**方位适合去、适合做重要的事
-3. **橙色/红色**方位建议减少停留
-4. 下面的曲线看某个方位的 60 年变化趋势
+1. 顶部先填出生信息
+2. 拖动年份滑块，看不同年份的九宫格变化
+3. 绿色/黄色方位适合去，橙色/红色建议减少停留
+4. 下方曲线看某个方位的 60 年趋势
 
 仅作能量参考，不构成实际建议。
 """)
