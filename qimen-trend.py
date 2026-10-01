@@ -54,7 +54,6 @@ DIZHI_WUXING = {"子": "水", "丑": "土", "寅": "木", "卯": "木",
                 "辰": "土", "巳": "火", "午": "火", "未": "土",
                 "申": "金", "酉": "金", "戌": "土", "亥": "水"}
 
-# 藏干及权重（本气0.6、中气0.3、余气0.1）
 DIZHI_CANGGAN = {
     "子": {"癸": 1.0}, "丑": {"己": 0.6, "癸": 0.3, "辛": 0.1},
     "寅": {"甲": 0.6, "丙": 0.3, "戊": 0.1}, "卯": {"乙": 1.0},
@@ -64,32 +63,11 @@ DIZHI_CANGGAN = {
     "戌": {"戊": 0.6, "辛": 0.3, "丁": 0.1}, "亥": {"壬": 0.7, "甲": 0.3},
 }
 
-WUXING_SHENG = {"木": "火", "火": "土", "土": "金", "金": "水", "水": "木"}
-WUXING_KE = {"木": "土", "土": "水", "水": "火", "火": "金", "金": "木"}
-
-# 对身弱丙火的日主方向系数
 WUXING_COEF = {"火": 1.0, "木": 0.8, "土": -0.6, "金": -0.4, "水": -1.0}
-
-# 月令旺衰系数（按传统四时休旺）
-MONTH_STRENGTH = {
-    "寅": {"火": 0.75, "木": 1.0, "土": 0.2, "金": 0.35, "水": 0.5},
-    "卯": {"火": 0.75, "木": 1.0, "土": 0.2, "金": 0.35, "水": 0.5},
-    "辰": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "巳": {"火": 1.0, "木": 0.5, "土": 0.75, "金": 0.2, "水": 0.35},
-    "午": {"火": 1.0, "木": 0.5, "土": 0.75, "金": 0.2, "水": 0.35},
-    "未": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "申": {"火": 0.35, "木": 0.2, "土": 0.5, "金": 1.0, "水": 0.75},
-    "酉": {"火": 0.35, "木": 0.2, "土": 0.5, "金": 1.0, "水": 0.75},
-    "戌": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-    "亥": {"火": 0.2, "木": 0.75, "土": 0.35, "金": 0.5, "水": 1.0},
-    "子": {"火": 0.2, "木": 0.75, "土": 0.35, "金": 0.5, "水": 1.0},
-    "丑": {"火": 0.5, "木": 0.35, "土": 1.0, "金": 0.75, "水": 0.2},
-}
 
 PALACE_BENQI = {"巽": "木", "离": "火", "坤": "土", "震": "木", "中": "土",
                 "兑": "金", "艮": "土", "坎": "水", "乾": "金"}
 
-# 九星五行
 FEIXING_MAP = {1: "水", 2: "土", 3: "木", 4: "木", 5: "土",
                6: "金", 7: "金", 8: "土", 9: "火"}
 
@@ -101,23 +79,16 @@ def get_year_ganzhi(year):
 
 
 def get_month_zhi_by_jieqi(month, day):
-    """按节气近似定月支"""
-    # 每月节气大致日期：2/4立春、3/6惊蛰、4/5清明、5/6立夏、6/6芒种、7/7小暑
-    # 8/8立秋、9/8白露、10/8寒露、11/7立冬、12/7大雪、1/6小寒
     jieqi_days = {1: 6, 2: 4, 3: 6, 4: 5, 5: 6, 6: 6,
                   7: 7, 8: 8, 9: 8, 10: 8, 11: 7, 12: 7}
-    # 月支索引：寅月=2，卯月=3，...，丑月=1
     if day >= jieqi_days[month]:
-        # 已过节气，进入当月
-        month_zhi_idx = month % 12  # 1月→丑，2月→寅
+        month_zhi_idx = month % 12
     else:
-        # 未过节气，还在上个月
         month_zhi_idx = (month - 1) % 12
     return DIZHI[month_zhi_idx]
 
 
 def get_day_ganzhi(year, month, day):
-    """日柱干支（简化公式）"""
     dt = datetime(year, month, day)
     base = datetime(1900, 1, 1)
     delta = (dt - base).days
@@ -127,7 +98,6 @@ def get_day_ganzhi(year, month, day):
 
 
 def get_hour_ganzhi(day_gan, hour):
-    """时柱干支"""
     day_gan_idx = TIANGAN.index(day_gan)
     hour_zhi_idx = ((hour + 1) // 2) % 12
     hour_gan_idx = (day_gan_idx * 2 + hour_zhi_idx) % 10
@@ -136,11 +106,8 @@ def get_hour_ganzhi(day_gan, hour):
 
 def build_sizhu(year, month, day, hour):
     year_gan, year_zhi = get_year_ganzhi(year)
-
-    # 月柱：用节气定
     month_zhi = get_month_zhi_by_jieqi(month, day)
     month_zhi_idx = DIZHI.index(month_zhi)
-    # 月干：根据年干和月支推
     year_gan_idx = TIANGAN.index(year_gan)
     month_gan_idx = (year_gan_idx * 2 + month_zhi_idx) % 10
     month_gan = TIANGAN[month_gan_idx]
@@ -157,7 +124,6 @@ def build_sizhu(year, month, day, hour):
 
 
 def compute_daymaster_strength(sizhu):
-    """日主强弱（含藏干加权）"""
     score = {"火": 0.0, "木": 0.0, "土": 0.0, "金": 0.0, "水": 0.0}
     for zhu_name, (gan, zhi) in sizhu.items():
         if gan in TIANGAN_WUXING:
@@ -170,20 +136,18 @@ def compute_daymaster_strength(sizhu):
 
 
 def compute_palace_score(palace, year):
-    """方位分 = 本气分 + 流年飞星分"""
+    """方位分 = 宫位本气分 + 流年飞星分"""
     bq = PALACE_BENQI[palace]
     bq_score = WUXING_COEF.get(bq, 0)
 
-    # 流年飞星
     feixing = (year - 2026) % 9 + 1
     fs_wx = FEIXING_MAP.get(feixing, "")
-    fs_score = WUXING_COEF.get(fs_wx, 0) * 0.5
+    fs_score = WUXING_COEF.get(fs_wx, 0) * 0.3
 
     return bq_score + fs_score
 
 
 def get_dayun_list(sizhu):
-    """大运逆排（阴男）"""
     month_gan, month_zhi = sizhu["月"]
     mg_idx = TIANGAN.index(month_gan)
     mz_idx = DIZHI.index(month_zhi)
@@ -212,7 +176,6 @@ st.caption(f"出生：{year}年{month}月{day}日{hour}时　｜　"
            f"{sizhu['日'][0]}{sizhu['日'][1]} "
            f"{sizhu['时'][0]}{sizhu['时'][1]}　｜　日主：{daymaster_gan}（{daymaster_wx}）")
 
-# 日主强弱
 strength = compute_daymaster_strength(sizhu)
 st.caption(f"日主强弱：火 {strength['火']:.2f} ｜ 木 {strength['木']:.2f} ｜ "
            f"土 {strength['土']:.2f} ｜ 金 {strength['金']:.2f} ｜ 水 {strength['水']:.2f}")
@@ -266,7 +229,7 @@ with col2:
         y_gan, y_zhi = get_year_ganzhi(y)
         age = y - year + 1
 
-        # 方位分（随流年变化）
+        # 方位分（该宫的固定能量）
         p_score = compute_palace_score(selected_palace, y)
         palace_scores.append(p_score)
 
@@ -283,7 +246,12 @@ with col2:
         y_wx = TIANGAN_WUXING.get(y_gan, "")
         y_score = WUXING_COEF.get(y_wx, 0) * 0.5
 
-        flow_scores.append(p_score + dy_score + y_score)
+        # ===== 乘法联动 =====
+        # 方位分决定“敏感度”，流年和大运决定“波动方向”
+        y_factor = 1.0 + y_score * 0.8
+        dy_factor = 1.0 + dy_score * 0.5
+        total = p_score * y_factor * dy_factor
+        flow_scores.append(total)
 
     st.markdown(f"**当前方位分（{year}年）**：{compute_palace_score(selected_palace, year):+.2f}")
 
@@ -292,11 +260,6 @@ with col2:
         x=years, y=flow_scores,
         mode="lines", line=dict(color="#ffb74d", width=2.5),
         name="综合能量",
-    ))
-    fig.add_trace(go.Scatter(
-        x=years, y=[p + d for p, d in zip(palace_scores, dayun_scores)],
-        mode="lines", line=dict(color="#42a5f5", width=1.5, dash="dash"),
-        name="方位+大运基线",
     ))
     fig.add_trace(go.Scatter(
         x=years, y=palace_scores,
@@ -311,15 +274,22 @@ with col2:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.caption("橙线=综合能量（方位+大运+流年）｜ 蓝虚线=方位+大运基线 ｜ 绿点线=方位分（每年随飞星变化）")
+    st.caption("橙线=综合能量（方位分 × 流年因子 × 大运因子）｜ 绿点线=方位分")
 
 st.divider()
 st.markdown("""
-**优化内容**：
+**联动逻辑**：
 
-- **月柱**：按节气精确定位（立春~惊蛰为寅月，依次类推）
-- **藏干加权**：地支藏干按本气 0.6、中气 0.3、余气 0.1 计入日主强弱
-- **方位分随流年变化**：每年叠加流年飞星，曲线不再是一条平直线
+- **方位分**：从奇门盘算，宫位本气 × 五行权重 + 流年飞星
+- **流年因子**：1 + 流年天干五行权重 × 0.8
+- **大运因子**：1 + 大运干支五行权重 × 0.5
+- **综合能量** = 方位分 × 流年因子 × 大运因子
+
+**不同宫位，因为方位分不同，曲线形状会不同**：
+
+- 方位分为正 → 曲线在正区间震荡
+- 方位分为负 → 曲线在负区间震荡
+- 方位分越大 → 波动越剧烈
 
 仅作能量起伏演示，不构成预测。
 """)
