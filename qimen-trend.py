@@ -172,8 +172,9 @@ def get_dayun(age, sizhu):
 
 def compute_palace_energy(palace, target_year, birth_year, sizhu):
     """
-    综合能量 = 方位分 + 大运分 × 0.5 + 流年分 × 1.0
-    大运权重减半，让流年帮身力量显现
+    乘法联动 + 放大系数
+    综合能量 = (方位分 × 流年因子 × 大运因子) × 5.0
+    不同宫位曲线形状不同
     """
     # 方位分
     bq = PALACE_BENQI[palace]
@@ -183,7 +184,7 @@ def compute_palace_energy(palace, target_year, birth_year, sizhu):
     fs_score = WUXING_COEF.get(fs_wx, 0) * 0.3
     palace_score = bq_score + fs_score
 
-    # 大运分（权重 0.5）
+    # 大运分
     age = target_year - birth_year + 1
     dy_gan, dy_zhi = get_dayun(age, sizhu)
     dy_score = 0.0
@@ -192,22 +193,26 @@ def compute_palace_energy(palace, target_year, birth_year, sizhu):
     if DIZHI_WUXING.get(dy_zhi):
         dy_score += WUXING_COEF[DIZHI_WUXING[dy_zhi]] * 0.4
 
-    # 流年分（权重 1.0）
+    # 流年分
     y_gan, _ = get_year_ganzhi(target_year)
     y_wx = TIANGAN_WUXING.get(y_gan, "")
-    y_score = WUXING_COEF.get(y_wx, 0) * 1.0
+    y_score = WUXING_COEF.get(y_wx, 0)
 
-    # 加法联动
-    total = palace_score + dy_score + y_score * 0.8
+    # 乘法因子
+    y_factor = 1.0 + y_score * 0.8
+    dy_factor = 1.0 + dy_score * 0.5
+
+    # 乘法 + 放大
+    total = palace_score * y_factor * dy_factor * 5.0
     return total
 
 
 def get_level(score):
-    if score > 1.0:
+    if score > 3.0:
         return "🟢 有利", "#66bb6a"
-    elif score > 0.3:
+    elif score > 1.0:
         return "🟡 偏有利", "#ffca28"
-    elif score > -0.5:
+    elif score > -1.0:
         return "🟠 偏不利", "#ff9800"
     else:
         return "🔴 不利", "#ef5350"
