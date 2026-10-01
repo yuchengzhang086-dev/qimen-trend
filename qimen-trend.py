@@ -7,7 +7,6 @@ st.set_page_config(page_title="时空能量分析", layout="wide")
 
 st.markdown("""
 <style>
-/* ===== 桌面端 ===== */
 .qimen-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -30,15 +29,12 @@ st.markdown("""
     margin-bottom: 4px;
 }
 
-/* ===== 手机端适配（屏幕宽度小于 768px）===== */
 @media (max-width: 768px) {
-    /* 列堆叠：左右两栏变成上下排列 */
     [data-testid="column"] {
         width: 100% !important;
         flex: 1 1 100% !important;
         min-width: 100% !important;
     }
-    /* 九宫格缩小 */
     .qimen-cell {
         padding: 4px;
         font-size: 10px;
@@ -48,24 +44,11 @@ st.markdown("""
         font-size: 12px;
         margin-bottom: 2px;
     }
-    /* 标题缩小 */
-    h1 {
-        font-size: 22px !important;
-    }
-    h2 {
-        font-size: 18px !important;
-    }
-    h3 {
-        font-size: 16px !important;
-    }
-    /* 侧边栏输入框高度适配 */
-    .stNumberInput input {
-        font-size: 16px !important;
-    }
-    /* 隐藏 Plotly 工具栏（手机上没必要显示） */
-    .modebar {
-        display: none !important;
-    }
+    h1 { font-size: 22px !important; }
+    h2 { font-size: 18px !important; }
+    h3 { font-size: 16px !important; }
+    .stNumberInput input { font-size: 16px !important; }
+    .modebar { display: none !important; }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -222,8 +205,7 @@ col1, col2 = st.columns([3, 4])
 
 with col1:
     st.subheader("🧭 空间维度 · 方位能量")
-
-    st.markdown("**九宫格（基于出生年的方位分）**")
+    st.markdown("**九宫格**")
 
     palace_layout = [
         ("巽", "东南", "#4caf50"), ("离", "正南", "#ff5252"), ("坤", "西南", "#ffc107"),
@@ -240,16 +222,16 @@ with col1:
             f'<div class="palace-name" style="color: {color};">{name}宫</div>'
             f'<div style="font-size:11px;color:#888;">{direction}</div>'
             f'<div style="font-size:12px;color:#ddd;">本气：{bq}</div>'
-            f'<div style="font-size:12px;color:#ffb74d;">{year}年分：{score:+.2f}</div>'
+            f'<div style="font-size:12px;color:#ffb74d;">{year}年：{score:+.2f}</div>'
             f'</div>'
         )
     html += '</div>'
     st.html(html)
 
-    st.caption("方位分 = 宫位本气分 + 流年飞星分，每年变化。")
+    st.caption("方位分 = 宫位本气分 + 流年飞星分")
 
 with col2:
-    st.subheader("📈 宫位 60 年趋势")
+    st.subheader("📈 宫位趋势")
 
     palace_options = ["巽宫（东南·木）", "离宫（正南·火）", "坤宫（西南·土）",
                       "震宫（正东·木）", "中宫（中央·土）", "兑宫（正西·金）",
@@ -258,10 +240,16 @@ with col2:
     palace_names = ["巽", "离", "坤", "震", "中", "兑", "艮", "坎", "乾"]
     selected_palace = palace_names[palace_options.index(selected)]
 
-    years = list(range(year, year + 60))
+    # 时间范围滑块
+    start_year = st.slider("起始年份", min_value=year, max_value=year + 40,
+                           value=year, step=5)
+    end_year = start_year + 20
+
+    show_palace_line = st.checkbox("显示方位分曲线", value=False)
+
+    years = list(range(start_year, end_year + 1))
     flow_scores = []
     palace_scores = []
-    dayun_scores = []
 
     for yi, y in enumerate(years):
         y_gan, y_zhi = get_year_ganzhi(y)
@@ -276,7 +264,6 @@ with col2:
             dy_score += WUXING_COEF[TIANGAN_WUXING[dy_gan]] * 1.0
         if DIZHI_WUXING.get(dy_zhi):
             dy_score += WUXING_COEF[DIZHI_WUXING[dy_zhi]] * 0.8
-        dayun_scores.append(dy_score)
 
         y_wx = TIANGAN_WUXING.get(y_gan, "")
         y_score = WUXING_COEF.get(y_wx, 0) * 0.5
@@ -286,40 +273,50 @@ with col2:
         total = p_score * y_factor * dy_factor
         flow_scores.append(total)
 
-    st.markdown(f"**当前方位分（{year}年）**：{compute_palace_score(selected_palace, year):+.2f}")
+    st.markdown(f"**{start_year}–{end_year} 年趋势**　｜　"
+                f"方位分：{compute_palace_score(selected_palace, start_year):+.2f}")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=years, y=flow_scores,
-        mode="lines", line=dict(color="#ffb74d", width=2.5),
+        mode="lines+markers",
+        line=dict(color="#ffb74d", width=3),
+        marker=dict(size=6),
         name="综合能量",
     ))
-    fig.add_trace(go.Scatter(
-        x=years, y=palace_scores,
-        mode="lines", line=dict(color="#66bb6a", width=1, dash="dot"),
-        name="方位分（随流年）",
-    ))
+
+    if show_palace_line:
+        fig.add_trace(go.Scatter(
+            x=years, y=palace_scores,
+            mode="lines",
+            line=dict(color="#66bb6a", width=1.5, dash="dot"),
+            name="方位分",
+        ))
+
     fig.add_hline(y=0, line_dash="dot", line_color="#555")
     fig.update_layout(
-        height=400, template="plotly_dark",
-        margin=dict(l=60, r=20, t=30, b=40),
-        xaxis_title="年份", yaxis_title="综合能量",
+        height=450,
+        template="plotly_dark",
+        margin=dict(l=40, r=20, t=30, b=40),
+        xaxis_title="年份",
+        yaxis_title="综合能量",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
     st.plotly_chart(fig, use_container_width=True, config={
         'scrollZoom': True,
         'displayModeBar': False,
     })
 
-    st.caption("橙线=综合能量（方位分 × 流年因子 × 大运因子）｜ 绿点线=方位分")
+    st.caption("橙线=综合能量（方位分 × 流年因子 × 大运因子）")
 
 st.divider()
 st.markdown("""
 **联动逻辑**：
 
-- **方位分**：从奇门盘算，宫位本气 × 五行权重 + 流年飞星
+- **方位分**：宫位本气 × 五行权重 + 流年飞星
 - **流年因子**：1 + 流年天干五行权重 × 0.8
 - **大运因子**：1 + 大运干支五行权重 × 0.5
 - **综合能量** = 方位分 × 流年因子 × 大运因子
 
-不同宫位，因为方位分不同，曲线形状会不同。仅作能量起伏演示，不构成预测。
+不同宫位，方位分不同，曲线形状不同。仅作能量起伏演示，不构成预测。
 """)
