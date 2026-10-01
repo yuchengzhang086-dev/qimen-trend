@@ -7,6 +7,7 @@ st.set_page_config(page_title="时空能量分析", layout="wide")
 
 st.markdown("""
 <style>
+/* ===== 桌面端 ===== */
 .qimen-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -27,6 +28,44 @@ st.markdown("""
     font-size: 15px;
     font-weight: bold;
     margin-bottom: 4px;
+}
+
+/* ===== 手机端适配（屏幕宽度小于 768px）===== */
+@media (max-width: 768px) {
+    /* 列堆叠：左右两栏变成上下排列 */
+    [data-testid="column"] {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 100% !important;
+    }
+    /* 九宫格缩小 */
+    .qimen-cell {
+        padding: 4px;
+        font-size: 10px;
+        line-height: 1.4;
+    }
+    .qimen-cell .palace-name {
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+    /* 标题缩小 */
+    h1 {
+        font-size: 22px !important;
+    }
+    h2 {
+        font-size: 18px !important;
+    }
+    h3 {
+        font-size: 16px !important;
+    }
+    /* 侧边栏输入框高度适配 */
+    .stNumberInput input {
+        font-size: 16px !important;
+    }
+    /* 隐藏 Plotly 工具栏（手机上没必要显示） */
+    .modebar {
+        display: none !important;
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -136,7 +175,6 @@ def compute_daymaster_strength(sizhu):
 
 
 def compute_palace_score(palace, year):
-    """方位分 = 宫位本气分 + 流年飞星分"""
     bq = PALACE_BENQI[palace]
     bq_score = WUXING_COEF.get(bq, 0)
 
@@ -229,11 +267,9 @@ with col2:
         y_gan, y_zhi = get_year_ganzhi(y)
         age = y - year + 1
 
-        # 方位分（该宫的固定能量）
         p_score = compute_palace_score(selected_palace, y)
         palace_scores.append(p_score)
 
-        # 大运分
         dy_gan, dy_zhi = get_dayun(age, sizhu)
         dy_score = 0.0
         if TIANGAN_WUXING.get(dy_gan):
@@ -242,12 +278,9 @@ with col2:
             dy_score += WUXING_COEF[DIZHI_WUXING[dy_zhi]] * 0.8
         dayun_scores.append(dy_score)
 
-        # 流年分
         y_wx = TIANGAN_WUXING.get(y_gan, "")
         y_score = WUXING_COEF.get(y_wx, 0) * 0.5
 
-        # ===== 乘法联动 =====
-        # 方位分决定“敏感度”，流年和大运决定“波动方向”
         y_factor = 1.0 + y_score * 0.8
         dy_factor = 1.0 + dy_score * 0.5
         total = p_score * y_factor * dy_factor
@@ -272,7 +305,10 @@ with col2:
         margin=dict(l=60, r=20, t=30, b=40),
         xaxis_title="年份", yaxis_title="综合能量",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config={
+        'scrollZoom': True,
+        'displayModeBar': False,
+    })
 
     st.caption("橙线=综合能量（方位分 × 流年因子 × 大运因子）｜ 绿点线=方位分")
 
@@ -285,11 +321,5 @@ st.markdown("""
 - **大运因子**：1 + 大运干支五行权重 × 0.5
 - **综合能量** = 方位分 × 流年因子 × 大运因子
 
-**不同宫位，因为方位分不同，曲线形状会不同**：
-
-- 方位分为正 → 曲线在正区间震荡
-- 方位分为负 → 曲线在负区间震荡
-- 方位分越大 → 波动越剧烈
-
-仅作能量起伏演示，不构成预测。
+不同宫位，因为方位分不同，曲线形状会不同。仅作能量起伏演示，不构成预测。
 """)
