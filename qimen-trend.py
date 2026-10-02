@@ -3,7 +3,7 @@ import plotly.graph_objects as go
 import numpy as np
 from datetime import datetime
 
-st.set_page_config(page_title="年度摸鱼指南", layout="wide")
+st.set_page_config(page_title="时空能量分析", layout="wide")
 
 st.markdown("""
 <style>
@@ -55,7 +55,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🔮 时空能量分析")
+st.title("🔮 年度摸鱼指南")
 st.caption("输入出生时间，查看每年方位")
 
 
